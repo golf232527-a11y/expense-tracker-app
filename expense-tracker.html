@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>บันทึกรายรับ-รายจ่าย</title>
+
+<!-- ทำให้เปิดแบบเต็มจอเหมือนแอปเมื่อ Add to Home Screen -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="รายรับ-รายจ่าย">
+<meta name="theme-color" content="#d9622b">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23d9622b'/%3E%3Ctext x='96' y='128' font-size='110' text-anchor='middle' fill='white' font-family='Arial'%3E%E0%B8%BF%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23d9622b'/%3E%3Ctext x='96' y='128' font-size='110' text-anchor='middle' fill='white' font-family='Arial'%3E%E0%B8%BF%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href='data:application/manifest+json,{"name":"บันทึกรายจ่าย","short_name":"รายจ่าย","start_url":".","display":"standalone","background_color":"%23f6f5f1","theme_color":"%23d9622b","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 192 192\'%3E%3Crect width=\'192\' height=\'192\' rx=\'40\' fill=\'%23d9622b\'/%3E%3Ctext x=\'96\' y=\'128\' font-size=\'110\' text-anchor=\'middle\' fill=\'white\' font-family=\'Arial\'%3E%E0%B8%BF%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml","purpose":"any maskable"}]}'>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --card: #ffffff;
+    --ink: #1f1f1f;
+    --muted: #6b6b6b;
+    --accent: #d9622b;
+    --accent-soft: #f7ded1;
+    --line: #eae7e0;
+    --green: #4a7c59;
+    --red: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', 'Tahoma', 'Sarabun', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    font-weight: 700;
+  }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 15px;
+    margin: 0 0 14px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  form .full { grid-column: 1 / -1; }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fdfdfc;
+    font-family: inherit;
+  }
+  textarea { resize: none; height: 38px; }
+  .type-toggle { display: flex; gap: 8px; }
+  .type-toggle button {
+    flex: 1; grid-column: unset; margin: 0;
+    background: #fff; color: var(--muted); border: 1px solid var(--line);
+    padding: 10px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .type-toggle button.active[data-type="expense"] { background: var(--red); color: #fff; border-color: var(--red); }
+  .type-toggle button.active[data-type="income"] { background: var(--green); color: #fff; border-color: var(--green); }
+  button {
+    grid-column: 1 / -1;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  button:hover { opacity: 0.92; }
+  button.secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    font-weight: 500;
+  }
+  .backup-row { display: flex; flex-direction: column; gap: 8px; }
+  .backup-row button { grid-column: unset; margin: 0; width: 100%; text-align: left; padding: 11px 14px; }
+  .backup-row button:hover { background: var(--accent-soft); color: var(--ink); border-color: var(--accent-soft); }
+
+  .summary-row { display: flex; gap: 10px; margin-bottom: 4px; }
+  .stat {
+    flex: 1;
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .stat .value { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .stat.expense { background: #fbe4e0; }
+  .stat.expense .value { color: var(--red); }
+  .stat.income { background: #e2eee4; }
+  .stat.income .value { color: var(--green); }
+  .stat.balance { background: var(--ink); }
+  .stat.balance .label { color: #cfcfcf; }
+  .stat.balance .value { color: #fff; font-size: 22px; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    cursor: pointer;
+    background: #fff;
+    color: var(--muted);
+  }
+  .tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  .month-select { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-select button { grid-column: unset; width: 32px; height: 32px; padding: 0; border-radius: 8px; background: #fff; color: var(--ink); border: 1px solid var(--line); font-weight: 700; margin: 0; }
+  .month-select .m-label { font-size: 15px; font-weight: 600; }
+
+  .chart-wrap { max-width: 220px; margin: 0 auto 10px; }
+
+  .cat-legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+  .cat-legend span { font-size: 12px; display: flex; align-items: center; gap: 5px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  .rank-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+  .rank-item { display: flex; align-items: center; gap: 10px; }
+  .rank-num {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--line);
+    color: var(--muted); font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .rank-item:nth-child(1) .rank-num { background: #f6c343; color: #6b4e00; }
+  .rank-item:nth-child(2) .rank-num { background: #d6d6d6; color: #4a4a4a; }
+  .rank-item:nth-child(3) .rank-num { background: #e3b08c; color: #5c3417; }
+  .rank-body { flex: 1; min-width: 0; }
+  .rank-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .rank-top .cat-name { font-weight: 600; }
+  .rank-top .cat-amt { font-weight: 700; color: var(--accent); }
+  .rank-bar-bg { background: var(--line); border-radius: 6px; height: 6px; overflow: hidden; }
+  .rank-bar-fill { height: 100%; border-radius: 6px; }
+  .rank-pct { font-size: 11px; color: var(--muted); margin-left: 6px; }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  }
+  .item .left { display: flex; flex-direction: column; }
+  .item .cat { font-size: 13px; font-weight: 600; }
+  .item .note { font-size: 12px; color: var(--muted); }
+  .item .date { font-size: 11px; color: var(--muted); }
+  .item .amt { font-weight: 700; font-size: 14px; }
+  .item .del {
+    background: none; border: none; color: var(--muted); font-size: 16px;
+    cursor: pointer; padding: 0 0 0 10px; grid-column: unset; margin: 0;
+  }
+  .item .right { display: flex; align-items: center; }
+
+  .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 0; }
+  .loading { text-align: center; color: var(--muted); padding: 30px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💰 บันทึกรายรับ-รายจ่าย</h1>
+  <div class="sub">เพิ่มรายการ แล้วดูสรุปรายวัน / รายเดือนได้ทันที</div>
+
+  <div class="card">
+    <h2 id="formTitle">➕ เพิ่มรายการรายจ่าย</h2>
+    <form id="expenseForm">
+      <div class="full type-toggle">
+        <button type="button" class="active" data-type="expense" id="typeExpenseBtn">💸 รายจ่าย</button>
+        <button type="button" data-type="income" id="typeIncomeBtn">💵 รายรับ</button>
+      </div>
+      <div>
+        <label>จำนวนเงิน (บาท)</label>
+        <input type="number" id="amount" step="0.01" min="0" placeholder="0.00" required>
+      </div>
+      <div>
+        <label>หมวดหมู่</label>
+        <select id="category"></select>
+      </div>
+      <div class="full">
+        <label>วันที่</label>
+        <input type="date" id="date" required>
+      </div>
+      <div class="full">
+        <label>บันทึกเพิ่มเติม (ไม่บังคับ)</label>
+        <textarea id="note" placeholder="เช่น ข้าวเที่ยงกับเพื่อน"></textarea>
+      </div>
+      <button type="submit" id="submitBtn">บันทึกรายจ่าย</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>📊 สรุปยอด</h2>
+    <div class="summary-row">
+      <div class="stat expense">
+        <div class="label">รายจ่ายวันนี้</div>
+        <div class="value" id="todayExpense">฿0</div>
+      </div>
+      <div class="stat income">
+        <div class="label">รายรับวันนี้</div>
+        <div class="value" id="todayIncome">฿0</div>
+      </div>
+    </div>
+    <div class="summary-row" style="margin-top:10px;">
+      <div class="stat expense">
+        <div class="label">รายจ่ายเดือนนี้</div>
+        <div class="value" id="monthExpense">฿0</div>
+      </div>
+      <div class="stat income">
+        <div class="label">รายรับเดือนนี้</div>
+        <div class="value" id="monthIncome">฿0</div>
+      </div>
+    </div>
+    <div class="stat balance" style="margin-top:10px;">
+      <div class="label">คงเหลือเดือนนี้</div>
+      <div class="value" id="monthBalance">฿0</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <div class="tab main-tab active" data-tab="daily">รายวัน</div>
+      <div class="tab main-tab" data-tab="monthly">รายเดือน</div>
+      <div class="tab main-tab" data-tab="ranking">🏆 จัดอันดับ</div>
+    </div>
+
+    <div id="dailyView">
+      <div class="month-select">
+        <button id="prevDay">‹</button>
+        <div class="m-label" id="dayLabel">-</div>
+        <button id="nextDay">›</button>
+      </div>
+      <div class="list" id="dailyList"></div>
+    </div>
+
+    <div id="monthlyView" style="display:none;">
+      <div class="month-select">
+        <button id="prevMonth">‹</button>
+        <div class="m-label" id="monthLabel">-</div>
+        <button id="nextMonth">›</button>
+      </div>
+      <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+      <div class="sub" style="text-align:center;margin-bottom:4px;">สัดส่วนรายจ่ายตามหมวดหมู่</div>
+      <div class="cat-legend" id="legend"></div>
+      <div class="list" id="monthlyList" style="margin-top:14px;"></div>
+    </div>
+
+    <div id="rankingView" style="display:none;">
+      <div class="tabs">
+        <div class="tab range-tab active" data-range="month">เดือนนี้</div>
+        <div class="tab range-tab" data-range="last-month">เดือนก่อน</div>
+        <div class="tab range-tab" data-range="all">ทั้งหมด</div>
+      </div>
+      <div class="rank-list" id="rankList"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>💾 สำรอง / นำเข้าข้อมูล</h2>
+    <div class="sub" style="margin-bottom:14px;">ข้อมูลเก็บอยู่ในเครื่องนี้เท่านั้น กดสำรองไว้เป็นระยะเพื่อกันข้อมูลหาย</div>
+    <div class="backup-row">
+      <button id="exportJsonBtn" class="secondary">⬇️ สำรองเป็น JSON</button>
+      <button id="exportCsvBtn" class="secondary">⬇️ ส่งออกเป็น Excel (CSV)</button>
+      <button id="importBtn" class="secondary">⬆️ นำเข้าข้อมูล (JSON)</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" style="display:none;">
+  </div>
+</div>
+
+<script>
+let expenses = [];
+let loaded = false;
+let currentDay = new Date();
+let currentMonth = new Date();
+let chart = null;
+let currentType = 'expense';
+
+const EXPENSE_CATEGORIES = [
+  { name: "อาหาร", emoji: "🍜" },
+  { name: "เดินทาง", emoji: "🚗" },
+  { name: "ช้อปปิ้ง", emoji: "🛍️" },
+  { name: "บิล/ค่าใช้จ่ายประจำ", emoji: "🧾" },
+  { name: "บันเทิง", emoji: "🎬" },
+  { name: "สุขภาพ", emoji: "💊" },
+  { name: "อื่นๆ", emoji: "📦" }
+];
+const INCOME_CATEGORIES = [
+  { name: "เงินเดือน", emoji: "💼" },
+  { name: "รายได้เสริม", emoji: "🧑‍💻" },
+  { name: "โบนัส", emoji: "🎁" },
+  { name: "ของขวัญ/ได้รับมา", emoji: "🎀" },
+  { name: "ดอกเบี้ย/เงินปันผล", emoji: "📈" },
+  { name: "อื่นๆ", emoji: "📦" }
+];
+
+const CAT_COLORS = {
+  "อาหาร": "#d9622b",
+  "เดินทาง": "#4a7c59",
+  "ช้อปปิ้ง": "#8e6bbf",
+  "บิล/ค่าใช้จ่ายประจำ": "#3f7cac",
+  "บันเทิง": "#c0392b",
+  "สุขภาพ": "#2fa39a",
+  "อื่นๆ": "#8a8a8a",
+  "เงินเดือน": "#2e7d32",
+  "รายได้เสริม": "#558b2f",
+  "โบนัส": "#f9a825",
+  "ของขวัญ/ได้รับมา": "#ad1457",
+  "ดอกเบี้ย/เงินปันผล": "#00838f"
+};
+
+const fmt = n => '฿' + Number(n).toLocaleString('th-TH', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+const fmtDate = d => d.toISOString().slice(0,10);
+const dayLabelStr = d => d.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const monthLabelStr = d => d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+
+const STORAGE_KEY = 'expense_tracker_data_v1';
+
+async function loadExpenses() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    expenses = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error('โหลดข้อมูลไม่สำเร็จ', e);
+    expenses = [];
+  }
+  loaded = true;
+  renderAll();
+}
+
+async function saveExpenses() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+  } catch (e) {
+    console.error('บันทึกไม่สำเร็จ', e);
+    alert('บันทึกข้อมูลไม่สำเร็จ พื้นที่จัดเก็บอาจเต็มหรือเบราว์เซอร์บล็อกการเข้าถึง');
+  }
+}
+
+function populateCategories(type) {
+  const sel = document.getElementById('category');
+  const cats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  sel.innerHTML = cats.map(c => `<option value="${c.name}">${c.emoji} ${c.name}</option>`).join('');
+}
+
+function setType(type) {
+  currentType = type;
+  document.getElementById('typeExpenseBtn').classList.toggle('active', type === 'expense');
+  document.getElementById('typeIncomeBtn').classList.toggle('active', type === 'income');
+  populateCategories(type);
+  document.getElementById('formTitle').textContent = type === 'income' ? '➕ เพิ่มรายการรายรับ' : '➕ เพิ่มรายการรายจ่าย';
+  document.getElementById('submitBtn').textContent = type === 'income' ? 'บันทึกรายรับ' : 'บันทึกรายจ่าย';
+  document.getElementById('submitBtn').style.background = type === 'income' ? 'var(--green)' : 'var(--accent)';
+}
+
+document.getElementById('typeExpenseBtn').addEventListener('click', () => setType('expense'));
+document.getElementById('typeIncomeBtn').addEventListener('click', () => setType('income'));
+setType('expense');
+
+document.getElementById('date').value = fmtDate(new Date());
+
+document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const amount = parseFloat(document.getElementById('amount').value);
+  const category = document.getElementById('category').value;
+  const date = document.getElementById('date').value;
+  const note = document.getElementById('note').value.trim();
+  if (!amount || amount <= 0) return;
+
+  expenses.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    type: currentType,
+    amount, category, date, note,
+    createdAt: new Date().toISOString()
+  });
+  await saveExpenses();
+  document.getElementById('expenseForm').reset();
+  document.getElementById('date').value = fmtDate(new Date());
+  populateCategories(currentType);
+  renderAll();
+});
+
+async function deleteExpense(id) {
+  expenses = expenses.filter(x => x.id !== id);
+  await saveExpenses();
+  renderAll();
+}
+
+document.querySelectorAll('.main-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const view = tab.dataset.tab;
+    document.getElementById('dailyView').style.display = view === 'daily' ? 'block' : 'none';
+    document.getElementById('monthlyView').style.display = view === 'monthly' ? 'block' : 'none';
+    document.getElementById('rankingView').style.display = view === 'ranking' ? 'block' : 'none';
+    if (view === 'monthly') renderMonthly();
+    if (view === 'ranking') renderRanking();
+  });
+});
+
+let currentRange = 'month';
+document.querySelectorAll('.range-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.range-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentRange = tab.dataset.range;
+    renderRanking();
+  });
+});
+
+document.getElementById('prevDay').addEventListener('click', () => {
+  currentDay.setDate(currentDay.getDate() - 1);
+  renderDaily();
+});
+document.getElementById('nextDay').addEventListener('click', () => {
+  currentDay.setDate(currentDay.getDate() + 1);
+  renderDaily();
+});
+document.getElementById('prevMonth').addEventListener('click', () => {
+  currentMonth.setMonth(currentMonth.getMonth() - 1);
+  renderMonthly();
+});
+document.getElementById('nextMonth').addEventListener('click', () => {
+  currentMonth.setMonth(currentMonth.getMonth() + 1);
+  renderMonthly();
+});
+
+function itemRow(item) {
+  const type = item.type || 'expense';
+  const catColor = CAT_COLORS[item.category] || '#999';
+  const amtColor = type === 'income' ? 'var(--green)' : 'var(--red)';
+  const sign = type === 'income' ? '+' : '-';
+  return `
+    <div class="item">
+      <div class="left">
+        <div class="cat" style="color:${catColor}">${type === 'income' ? '💵' : '💸'} ${item.category}</div>
+        ${item.note ? `<div class="note">${escapeHtml(item.note)}</div>` : ''}
+        <div class="date">${new Date(item.date).toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'})}</div>
+      </div>
+      <div class="right">
+        <div class="amt" style="color:${amtColor}">${sign}${fmt(item.amount)}</div>
+        <button class="del" onclick="deleteExpense('${item.id}')">✕</button>
+      </div>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderDaily() {
+  const dStr = fmtDate(currentDay);
+  document.getElementById('dayLabel').textContent = dayLabelStr(currentDay);
+  const dayItems = expenses.filter(x => x.date === dStr).sort((a,b)=> b.createdAt.localeCompare(a.createdAt));
+  const listEl = document.getElementById('dailyList');
+  listEl.innerHTML = dayItems.length
+    ? dayItems.map(itemRow).join('')
+    : '<div class="empty">ไม่มีรายการในวันนี้</div>';
+}
+
+function renderMonthly() {
+  const y = currentMonth.getFullYear(), m = currentMonth.getMonth();
+  document.getElementById('monthLabel').textContent = monthLabelStr(currentMonth);
+  const monthItems = expenses.filter(x => {
+    const d = new Date(x.date);
+    return d.getFullYear() === y && d.getMonth() === m;
+  }).sort((a,b)=> b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+
+  const listEl = document.getElementById('monthlyList');
+  listEl.innerHTML = monthItems.length
+    ? monthItems.map(itemRow).join('')
+    : '<div class="empty">ไม่มีรายการในเดือนนี้</div>';
+
+  // กราฟวงกลม: เฉพาะรายจ่าย เพื่อดูสัดส่วนการใช้จ่าย
+  const expenseItems = monthItems.filter(x => (x.type || 'expense') === 'expense');
+  const byCat = {};
+  expenseItems.forEach(x => { byCat[x.category] = (byCat[x.category] || 0) + x.amount; });
+  const labels = Object.keys(byCat);
+  const data = Object.values(byCat);
+  const colors = labels.map(l => CAT_COLORS[l] || '#999');
+
+  const legend = document.getElementById('legend');
+  legend.innerHTML = labels.length
+    ? labels.map((l,i) => `<span><span class="dot" style="background:${colors[i]}"></span>${l} (${fmt(byCat[l])})</span>`).join('')
+    : '<span>ยังไม่มีรายจ่ายในเดือนนี้</span>';
+
+  const ctx = document.getElementById('pieChart').getContext('2d');
+  if (chart) chart.destroy();
+  if (labels.length) {
+    chart = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+      options: { plugins: { legend: { display: false } }, cutout: '65%' }
+    });
+  }
+}
+
+function renderRanking() {
+  const now = new Date();
+  let items;
+  let rangeLabel;
+  if (currentRange === 'month') {
+    items = expenses.filter(x => {
+      const d = new Date(x.date);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    });
+    rangeLabel = 'เดือนนี้';
+  } else if (currentRange === 'last-month') {
+    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    items = expenses.filter(x => {
+      const d = new Date(x.date);
+      return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+    });
+    rangeLabel = 'เดือนก่อน';
+  } else {
+    items = expenses;
+    rangeLabel = 'ทั้งหมด';
+  }
+
+  const expenseItems = items.filter(x => (x.type || 'expense') === 'expense');
+  const byCat = {};
+  expenseItems.forEach(x => { byCat[x.category] = (byCat[x.category] || 0) + x.amount; });
+  const total = Object.values(byCat).reduce((s,v) => s+v, 0);
+  const ranked = Object.entries(byCat).sort((a,b) => b[1] - a[1]);
+
+  const listEl = document.getElementById('rankList');
+  if (!ranked.length) {
+    listEl.innerHTML = `<div class="empty">ไม่มีรายจ่ายใน${rangeLabel}</div>`;
+    return;
+  }
+  listEl.innerHTML = ranked.map(([cat, amt], i) => {
+    const pct = total ? Math.round((amt/total)*100) : 0;
+    const color = CAT_COLORS[cat] || '#999';
+    return `
+      <div class="rank-item">
+        <div class="rank-num">${i+1}</div>
+        <div class="rank-body">
+          <div class="rank-top">
+            <span class="cat-name">${cat}</span>
+            <span class="cat-amt">${fmt(amt)}<span class="rank-pct">${pct}%</span></span>
+          </div>
+          <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderSummary() {
+  const todayStr = fmtDate(new Date());
+  const todayItems = expenses.filter(x => x.date === todayStr);
+  const todayExpense = todayItems.filter(x => (x.type||'expense')==='expense').reduce((s,x)=>s+x.amount,0);
+  const todayIncome = todayItems.filter(x => x.type==='income').reduce((s,x)=>s+x.amount,0);
+
+  const now = new Date();
+  const monthItems = expenses.filter(x => {
+    const d = new Date(x.date);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+  const monthExpense = monthItems.filter(x => (x.type||'expense')==='expense').reduce((s,x)=>s+x.amount,0);
+  const monthIncome = monthItems.filter(x => x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const balance = monthIncome - monthExpense;
+
+  document.getElementById('todayExpense').textContent = fmt(todayExpense);
+  document.getElementById('todayIncome').textContent = fmt(todayIncome);
+  document.getElementById('monthExpense').textContent = fmt(monthExpense);
+  document.getElementById('monthIncome').textContent = fmt(monthIncome);
+  const balEl = document.getElementById('monthBalance');
+  balEl.textContent = (balance < 0 ? '-' : '') + fmt(Math.abs(balance));
+  balEl.style.color = balance < 0 ? '#e57373' : '#81c784';
+}
+
+function renderAll() {
+  renderSummary();
+  renderDaily();
+  renderMonthly();
+}
+
+// ---------- สำรอง / นำเข้าข้อมูล ----------
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function todayStamp() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+document.getElementById('exportJsonBtn').addEventListener('click', () => {
+  if (!expenses.length) { alert('ยังไม่มีข้อมูลให้สำรอง'); return; }
+  const payload = {
+    app: 'expense-tracker',
+    exportedAt: new Date().toISOString(),
+    count: expenses.length,
+    expenses
+  };
+  downloadBlob(JSON.stringify(payload, null, 2), `expense-backup-${todayStamp()}.json`, 'application/json');
+});
+
+function csvEscape(val) {
+  const s = String(val ?? '');
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  if (!expenses.length) { alert('ยังไม่มีข้อมูลให้ส่งออก'); return; }
+  const header = ['ประเภท', 'วันที่', 'หมวดหมู่', 'จำนวนเงิน', 'บันทึกเพิ่มเติม'];
+  const rows = [...expenses]
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map(x => [
+      (x.type||'expense') === 'income' ? 'รายรับ' : 'รายจ่าย',
+      x.date, x.category, x.amount, x.note || ''
+    ].map(csvEscape).join(','));
+  const csv = '\uFEFF' + [header.join(','), ...rows].join('\r\n'); // BOM ให้ Excel อ่านภาษาไทยถูก
+  downloadBlob(csv, `expense-export-${todayStamp()}.csv`, 'text/csv;charset=utf-8;');
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+
+document.getElementById('importFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const incoming = Array.isArray(parsed) ? parsed : parsed.expenses;
+    if (!Array.isArray(incoming)) throw new Error('รูปแบบไฟล์ไม่ถูกต้อง');
+
+    const valid = incoming.filter(x => x && typeof x.amount === 'number' && x.date && x.category);
+    if (!valid.length) throw new Error('ไม่พบรายการที่ใช้งานได้ในไฟล์');
+
+    const existingIds = new Set(expenses.map(x => x.id));
+    let added = 0, skipped = 0;
+    valid.forEach(item => {
+      const id = item.id && !existingIds.has(item.id)
+        ? item.id
+        : Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+      if (existingIds.has(id)) { skipped++; return; }
+      existingIds.add(id);
+      expenses.push({
+        id,
+        type: item.type === 'income' ? 'income' : 'expense',
+        amount: item.amount,
+        category: item.category,
+        date: item.date,
+        note: item.note || '',
+        createdAt: item.createdAt || new Date().toISOString()
+      });
+      added++;
+    });
+
+    await saveExpenses();
+    renderAll();
+    alert(`นำเข้าสำเร็จ: เพิ่ม ${added} รายการ${skipped ? ` (ข้ามรายการซ้ำ ${skipped})` : ''}`);
+  } catch (err) {
+    console.error(err);
+    alert('นำเข้าข้อมูลไม่สำเร็จ: ไฟล์ไม่ถูกต้องหรือเสียหาย');
+  } finally {
+    e.target.value = '';
+  }
+});
+
+loadExpenses();
+</script>
+</body>
+</html>
