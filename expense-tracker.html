@@ -186,8 +186,14 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>💰 บันทึกรายรับ-รายจ่าย</h1>
-  <div class="sub">เพิ่มรายการ แล้วดูสรุปรายวัน / รายเดือนได้ทันที</div>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+    <div>
+      <h1 style="margin-bottom:0;">💰 บันทึกรายรับ-รายจ่าย</h1>
+      <div class="sub" style="margin-bottom:0;">เพิ่มรายการ แล้วดูสรุปรายวัน / รายเดือนได้ทันที</div>
+    </div>
+    <button id="installBtn" type="button" style="display:none; grid-column:unset; margin:0; white-space:nowrap; padding:10px 14px; font-size:13px;">⬇️ ติดตั้งแอป</button>
+  </div>
+  <div style="height:16px;"></div>
 
   <div class="card">
     <h2 id="formTitle">➕ เพิ่มรายการรายจ่าย</h2>
@@ -295,6 +301,43 @@
 </div>
 
 <script>
+// ---------- ปุ่มติดตั้งแอป (PWA install prompt) ----------
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById('installBtn');
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+if (!isStandalone()) {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installBtn.style.display = 'inline-block';
+  });
+}
+
+installBtn.addEventListener('click', async () => {
+  if (!deferredInstallPrompt) {
+    alert('เบราว์เซอร์นี้ยังไม่รองรับการติดตั้งอัตโนมัติ ลองกดเมนู ⋮ มุมขวาบนแล้วเลือก "เพิ่มไปยังหน้าจอโฮม" แทนได้ครับ');
+    return;
+  }
+  installBtn.disabled = true;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if (outcome === 'accepted') {
+    installBtn.style.display = 'none';
+  } else {
+    installBtn.disabled = false;
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  installBtn.style.display = 'none';
+  deferredInstallPrompt = null;
+});
+
 let expenses = [];
 let loaded = false;
 let currentDay = new Date();
