@@ -27,6 +27,7 @@
     --line: #eae7e0;
     --green: #4a7c59;
     --red: #c0392b;
+    --amber: #b8860b;
   }
   * { box-sizing: border-box; }
   body {
@@ -96,6 +97,7 @@
     margin-top: 4px;
   }
   button:hover { opacity: 0.92; }
+  button:disabled { opacity: 0.6; cursor: default; }
   button.secondary {
     background: transparent;
     color: var(--muted);
@@ -182,6 +184,48 @@
 
   .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 0; }
   .loading { text-align: center; color: var(--muted); padding: 30px 0; font-size: 13px; }
+
+  .pending-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--amber);
+    background: #fff3d6;
+    border-radius: 6px;
+    padding: 1px 6px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+
+  .user-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .user-chip {
+    font-size: 12px; color: var(--muted); background: #fff; border: 1px solid var(--line);
+    border-radius: 20px; padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  }
+  .user-chip b { color: var(--ink); }
+
+  .status-banner {
+    text-align: center; font-size: 12px; padding: 8px 10px; border-radius: 8px;
+    margin-bottom: 12px; display: none;
+  }
+  .status-banner.loading { background: #eef1f6; color: var(--muted); }
+  .status-banner.offline { background: #fff3d6; color: #8a6400; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(31,31,31,0.55);
+    display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+  }
+  .overlay-card {
+    background: #fff; border-radius: 14px; padding: 22px; max-width: 360px; width: 100%;
+  }
+  .overlay-card h3 { margin: 0 0 6px; font-size: 17px; }
+  .overlay-card .sub { margin-bottom: 16px; }
+  .user-pick-list { display: flex; flex-direction: column; gap: 8px; }
+  .user-pick-btn {
+    grid-column: unset; margin: 0; background: var(--accent-soft); color: var(--ink);
+    border: 1px solid var(--accent-soft); font-weight: 600; text-align: left; padding: 12px 14px;
+  }
+  .user-pick-btn:hover { background: var(--accent); color: #fff; }
 </style>
 </head>
 <body>
@@ -193,7 +237,25 @@
     </div>
     <button id="installBtn" type="button" style="display:none; grid-column:unset; margin:0; white-space:nowrap; padding:10px 14px; font-size:13px;">⬇️ ติดตั้งแอป</button>
   </div>
-  <div style="height:16px;"></div>
+
+  <div class="card" id="noTeamCard" style="display:none;">
+    <h2>👋 ยังไม่พบทีมของคุณ</h2>
+    <div class="sub">
+      ถ้ามีลิงก์ของทีม (จากแอดมินทีมคุณ) ให้เปิดแอปผ่านลิงก์นั้นอีกครั้งครับ<br><br>
+      ถ้ายังไม่มีทีม ให้แอดมิน (คนที่จะคอยกดอนุมัติรายการ) เพิ่มบอทเป็นเพื่อนในไลน์ แล้วพิมพ์ข้อความ:<br>
+      <b>ตั้งทีมใหม่: ชื่อทีมของคุณ</b><br><br>
+      บอทจะตอบลิงก์เฉพาะของทีมนั้นกลับมา เปิดลิงก์นั้นแล้วใช้งานได้เลยครับ
+    </div>
+  </div>
+
+  <div id="mainContent" style="display:none;">
+  <div class="user-row" style="margin-top:14px;">
+    <div class="user-chip" id="switchUserBtn">👤 <b id="currentUserLabel">เลือกผู้ใช้</b> · เปลี่ยน</div>
+  </div>
+
+  <div id="statusBanner" class="status-banner"></div>
+
+  <div style="height:2px;"></div>
 
   <div class="card">
     <h2 id="formTitle">➕ เพิ่มรายการรายจ่าย</h2>
@@ -219,11 +281,12 @@
         <textarea id="note" placeholder="เช่น ข้าวเที่ยงกับเพื่อน"></textarea>
       </div>
       <button type="submit" id="submitBtn">บันทึกรายจ่าย</button>
+      <div class="sub full" style="text-align:center; margin:2px 0 0;">รายการจะรอผู้ปกครองกดยืนยันในไลน์ก่อน ถึงจะนับในยอดสรุป</div>
     </form>
   </div>
 
   <div class="card">
-    <h2>📊 สรุปยอด</h2>
+    <h2>📊 สรุปยอด (ของ <span id="summaryUserLabel">-</span>)</h2>
     <div class="summary-row">
       <div class="stat expense">
         <div class="label">รายจ่ายวันนี้</div>
@@ -273,7 +336,7 @@
         <button id="nextMonth">›</button>
       </div>
       <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
-      <div class="sub" style="text-align:center;margin-bottom:4px;">สัดส่วนรายจ่ายตามหมวดหมู่</div>
+      <div class="sub" style="text-align:center;margin-bottom:4px;">สัดส่วนรายจ่ายตามหมวดหมู่ (เฉพาะรายการที่ยืนยันแล้ว)</div>
       <div class="cat-legend" id="legend"></div>
       <div class="list" id="monthlyList" style="margin-top:14px;"></div>
     </div>
@@ -289,14 +352,28 @@
   </div>
 
   <div class="card">
-    <h2>💾 สำรอง / นำเข้าข้อมูล</h2>
-    <div class="sub" style="margin-bottom:14px;">ข้อมูลเก็บอยู่ในเครื่องนี้เท่านั้น กดสำรองไว้เป็นระยะเพื่อกันข้อมูลหาย</div>
+    <h2>💾 สำรองข้อมูล</h2>
+    <div class="sub" style="margin-bottom:14px;">ข้อมูลหลักเก็บอยู่ใน Google Sheet ของครอบครัวแล้ว ปุ่มนี้ไว้สำรองรายการที่กำลังแสดงอยู่เป็นไฟล์เผื่อใช้ดูภายนอก</div>
     <div class="backup-row">
       <button id="exportJsonBtn" class="secondary">⬇️ สำรองเป็น JSON</button>
       <button id="exportCsvBtn" class="secondary">⬇️ ส่งออกเป็น Excel (CSV)</button>
-      <button id="importBtn" class="secondary">⬆️ นำเข้าข้อมูล (JSON)</button>
     </div>
-    <input type="file" id="importFile" accept="application/json" style="display:none;">
+  </div>
+  </div>
+</div>
+
+<div class="overlay" id="userPickerOverlay">
+  <div class="overlay-card">
+    <h3>คุณคือใครครับ?</h3>
+    <div class="sub">เลือกชื่อของคุณ เพื่อแยกรายการของแต่ละคนไม่ให้ปนกัน (เลือกครั้งเดียว เครื่องนี้จะจำไว้ให้)</div>
+    <div class="user-pick-list" id="userPickerList"></div>
+    <div style="margin-top:14px; border-top:1px solid var(--line); padding-top:14px;">
+      <div id="addUserToggle" style="font-size:12px; color:var(--muted); cursor:pointer; text-align:center;">+ เพิ่มสมาชิกใหม่ (เช่น ญาติ/คนช่วยงานบ้าน)</div>
+      <div id="addUserForm" style="display:none; margin-top:10px;">
+        <input type="text" id="newUserName" placeholder="ชื่อสมาชิกใหม่" style="width:100%; margin-bottom:8px;">
+        <button type="button" id="addUserConfirmBtn" style="grid-column:unset; margin:0; width:100%;">เพิ่มสมาชิกนี้</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -338,12 +415,203 @@ window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
 });
 
+// ---------- การเชื่อมต่อ Google Apps Script (Google Sheet ของครอบครัว) ----------
+// *** แก้ 2 ค่านี้ให้ตรงกับ Apps Script Web App ของคุณก่อนใช้งาน ***
+const API_URL = 'https://script.google.com/macros/s/AKfycby6tN5BeLUCJ_Dk8cjUH6Py4KTGOkVe09zNLH7sWlyn4KXi0hMupAMXkp8cVfKasa0pgg/exec';
+const API_KEY = 'ใส่ค่า WEB_APP_KEY ตรงนี้ให้ตรงกับที่ตั้งใน Script Properties';
+
+async function apiGet(action, params) {
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  url.searchParams.set('key', API_KEY);
+  Object.keys(params || {}).forEach(k => url.searchParams.set(k, params[k]));
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ (' + res.status + ')');
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'เซิร์ฟเวอร์ตอบกลับผิดพลาด');
+  return data;
+}
+
+async function apiPost(action, body) {
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  url.searchParams.set('key', API_KEY);
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ (' + res.status + ')');
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'เซิร์ฟเวอร์ตอบกลับผิดพลาด');
+  return data;
+}
+
+// ---------- ทีม (แยกข้อมูลแต่ละครอบครัว/กลุ่มออกจากกัน) ----------
+const TEAM_STORAGE = 'expense_tracker_team_id_v1';
+let currentTeamId = '';
+
+function resolveTeamId() {
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('team');
+    if (fromUrl) {
+      localStorage.setItem(TEAM_STORAGE, fromUrl);
+      return fromUrl;
+    }
+  } catch (e) {}
+  try {
+    return localStorage.getItem(TEAM_STORAGE) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+// ---------- ผู้ใช้ (แยกข้อมูลของใครของมัน) ----------
+const USER_KEY_STORAGE_BASE = 'expense_tracker_user_key_v1';
+const CACHE_KEY_PREFIX_BASE = 'expense_tracker_cache_v1_';
+const FALLBACK_WEB_USERS = [
+  { key: 'golf', name: 'พ่อ (กอล์ฟ)' },
+  { key: 'kaew', name: 'แม่ (แก้ว)' },
+  { key: 'fluke', name: 'ลูก (ฟลุ๊ค)' },
+  { key: 'book', name: 'ลูก (บุ๊ค)' }
+];
+
+let currentUserKey = '';
+let currentUserName = '';
+let webUsersList = FALLBACK_WEB_USERS;
+
+function userKeyStorageName() {
+  return USER_KEY_STORAGE_BASE + '_' + (currentTeamId || 'default');
+}
+function getSavedUserKey() {
+  try { return localStorage.getItem(userKeyStorageName()) || ''; } catch (e) { return ''; }
+}
+function saveUserKey(key) {
+  try { localStorage.setItem(userKeyStorageName(), key); } catch (e) {}
+}
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY_PREFIX_BASE + (currentTeamId || 'default') + '_' + currentUserKey);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function writeCache(list) {
+  try { localStorage.setItem(CACHE_KEY_PREFIX_BASE + (currentTeamId || 'default') + '_' + currentUserKey, JSON.stringify(list)); } catch (e) {}
+}
+
+function updateUserBadge() {
+  const el = document.getElementById('currentUserLabel');
+  if (el) el.textContent = currentUserName || currentUserKey || 'เลือกผู้ใช้';
+  const el2 = document.getElementById('summaryUserLabel');
+  if (el2) el2.textContent = currentUserName || currentUserKey || '-';
+}
+
+function openUserPicker() {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('userPickerOverlay');
+    const listEl = document.getElementById('userPickerList');
+    listEl.innerHTML = webUsersList.map(u =>
+      `<button type="button" class="user-pick-btn" data-key="${escapeHtml(u.key)}">${escapeHtml(u.name)}</button>`
+    ).join('');
+    overlay.style.display = 'flex';
+    Array.prototype.forEach.call(listEl.querySelectorAll('.user-pick-btn'), btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-key');
+        const name = btn.textContent;
+        saveUserKey(key);
+        currentUserKey = key;
+        currentUserName = name;
+        overlay.style.display = 'none';
+        resolve(key);
+      });
+    });
+  });
+}
+
+async function refreshWebUsersList() {
+  try {
+    const res = await apiGet('web_users', { team: currentTeamId || 'default' });
+    if (res.users && res.users.length) webUsersList = res.users;
+  } catch (e) {
+    // เชื่อมต่อไม่ได้ก็ใช้รายชื่อสำรอง (FALLBACK_WEB_USERS) ไปก่อน
+  }
+}
+
+async function ensureUserPicked() {
+  await refreshWebUsersList();
+  const saved = getSavedUserKey();
+  const match = webUsersList.find(u => u.key === saved);
+  if (saved && match) {
+    currentUserKey = saved;
+    currentUserName = match.name;
+    updateUserBadge();
+    return;
+  }
+  await openUserPicker();
+  updateUserBadge();
+}
+
+document.getElementById('addUserToggle').addEventListener('click', () => {
+  const form = document.getElementById('addUserForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('addUserConfirmBtn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('newUserName');
+  const name = nameInput.value.trim();
+  if (!name) { alert('กรอกชื่อก่อนครับ'); return; }
+  const btn = document.getElementById('addUserConfirmBtn');
+  btn.disabled = true;
+  try {
+    const res = await apiPost('web_add_user', { team: currentTeamId || 'default', name });
+    webUsersList.push(res.user);
+    saveUserKey(res.user.key);
+    currentUserKey = res.user.key;
+    currentUserName = res.user.name;
+    document.getElementById('userPickerOverlay').style.display = 'none';
+    nameInput.value = '';
+    document.getElementById('addUserForm').style.display = 'none';
+    updateUserBadge();
+    await refreshAll();
+  } catch (err) {
+    alert('เพิ่มสมาชิกไม่สำเร็จ: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('switchUserBtn').addEventListener('click', async () => {
+  await refreshWebUsersList();
+  await openUserPicker();
+  updateUserBadge();
+  await refreshAll();
+});
+
+// ---------- สถานะโหลดข้อมูล ----------
+function setStatusBanner(state) {
+  const el = document.getElementById('statusBanner');
+  if (!el) return;
+  if (state === 'loading') {
+    el.style.display = 'block';
+    el.textContent = 'กำลังโหลดข้อมูล...';
+    el.className = 'status-banner loading';
+  } else if (state === 'offline') {
+    el.style.display = 'block';
+    el.textContent = '⚠️ เชื่อมต่อ Google Sheet ไม่ได้ กำลังแสดงข้อมูลที่เคยโหลดไว้ล่าสุดในเครื่องนี้';
+    el.className = 'status-banner offline';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 let expenses = [];
 let loaded = false;
 let currentDay = new Date();
 let currentMonth = new Date();
 let chart = null;
 let currentType = 'expense';
+let summaryToday = { income: 0, expense: 0, net: 0, count: 0 };
+let summaryMonth = { income: 0, expense: 0, net: 0, count: 0 };
 
 const EXPENSE_CATEGORIES = [
   { name: "อาหาร", emoji: "🍜" },
@@ -383,27 +651,37 @@ const fmtDate = d => d.toISOString().slice(0,10);
 const dayLabelStr = d => d.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const monthLabelStr = d => d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
-const STORAGE_KEY = 'expense_tracker_data_v1';
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
-async function loadExpenses() {
+// ---------- โหลด/บันทึกรายการ (ผ่าน Apps Script แทนการเก็บในเครื่องอย่างเดียว) ----------
+async function loadFromServer() {
+  setStatusBanner('loading');
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    expenses = raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.error('โหลดข้อมูลไม่สำเร็จ', e);
-    expenses = [];
+    const [listRes, sumRes] = await Promise.all([
+      apiGet('web_list', { user: currentUserKey, limit: 1000 }),
+      apiGet('web_summary', { user: currentUserKey })
+    ]);
+    expenses = listRes.transactions.map(t => ({
+      id: t.id, type: t.type, amount: t.amount, category: t.category,
+      date: t.date, note: t.note, createdAt: t.createdAt, status: t.status
+    }));
+    summaryToday = sumRes.today;
+    summaryMonth = sumRes.month;
+    writeCache(expenses);
+    setStatusBanner('ok');
+  } catch (err) {
+    console.error('โหลดจากเซิร์ฟเวอร์ไม่สำเร็จ', err);
+    expenses = readCache();
+    setStatusBanner('offline');
   }
   loaded = true;
   renderAll();
 }
 
-async function saveExpenses() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
-  } catch (e) {
-    console.error('บันทึกไม่สำเร็จ', e);
-    alert('บันทึกข้อมูลไม่สำเร็จ พื้นที่จัดเก็บอาจเต็มหรือเบราว์เซอร์บล็อกการเข้าถึง');
-  }
+async function refreshAll() {
+  await loadFromServer();
 }
 
 function populateCategories(type) {
@@ -436,23 +714,31 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const note = document.getElementById('note').value.trim();
   if (!amount || amount <= 0) return;
 
-  expenses.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    type: currentType,
-    amount, category, date, note,
-    createdAt: new Date().toISOString()
-  });
-  await saveExpenses();
-  document.getElementById('expenseForm').reset();
-  document.getElementById('date').value = fmtDate(new Date());
-  populateCategories(currentType);
-  renderAll();
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
+  try {
+    await apiPost('web_add', { user: currentUserKey, type: currentType, amount, category, date, note });
+    document.getElementById('expenseForm').reset();
+    document.getElementById('date').value = fmtDate(new Date());
+    populateCategories(currentType);
+    alert('ส่งรายการแล้ว ✅\nรอผู้ปกครองกดยืนยันในไลน์ก่อน ถึงจะนับในยอดสรุปครับ');
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+    alert('บันทึกไม่สำเร็จ: ' + err.message);
+  } finally {
+    submitBtn.disabled = false;
+  }
 });
 
-async function deleteExpense(id) {
-  expenses = expenses.filter(x => x.id !== id);
-  await saveExpenses();
-  renderAll();
+async function cancelPendingExpense(id) {
+  if (!confirm('ยกเลิกรายการที่รออนุมัตินี้ใช่ไหมครับ?')) return;
+  try {
+    await apiPost('web_cancel', { id });
+    await refreshAll();
+  } catch (err) {
+    alert('ยกเลิกไม่สำเร็จ: ' + err.message);
+  }
 }
 
 document.querySelectorAll('.main-tab').forEach(tab => {
@@ -500,28 +786,29 @@ function itemRow(item) {
   const catColor = CAT_COLORS[item.category] || '#999';
   const amtColor = type === 'income' ? 'var(--green)' : 'var(--red)';
   const sign = type === 'income' ? '+' : '-';
+  const isPending = item.status === 'pending';
+  const badge = isPending ? '<span class="pending-badge">รออนุมัติ</span>' : '';
+  const delBtn = isPending
+    ? `<button class="del" onclick="cancelPendingExpense('${item.id}')" title="ยกเลิกรายการที่รออนุมัติ">✕</button>`
+    : '';
   return `
     <div class="item">
       <div class="left">
-        <div class="cat" style="color:${catColor}">${type === 'income' ? '💵' : '💸'} ${item.category}</div>
+        <div class="cat" style="color:${catColor}">${type === 'income' ? '💵' : '💸'} ${escapeHtml(item.category)}${badge}</div>
         ${item.note ? `<div class="note">${escapeHtml(item.note)}</div>` : ''}
         <div class="date">${new Date(item.date).toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'})}</div>
       </div>
       <div class="right">
         <div class="amt" style="color:${amtColor}">${sign}${fmt(item.amount)}</div>
-        <button class="del" onclick="deleteExpense('${item.id}')">✕</button>
+        ${delBtn}
       </div>
     </div>`;
-}
-
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function renderDaily() {
   const dStr = fmtDate(currentDay);
   document.getElementById('dayLabel').textContent = dayLabelStr(currentDay);
-  const dayItems = expenses.filter(x => x.date === dStr).sort((a,b)=> b.createdAt.localeCompare(a.createdAt));
+  const dayItems = expenses.filter(x => x.date === dStr).sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
   const listEl = document.getElementById('dailyList');
   listEl.innerHTML = dayItems.length
     ? dayItems.map(itemRow).join('')
@@ -534,15 +821,15 @@ function renderMonthly() {
   const monthItems = expenses.filter(x => {
     const d = new Date(x.date);
     return d.getFullYear() === y && d.getMonth() === m;
-  }).sort((a,b)=> b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  }).sort((a,b)=> b.date.localeCompare(a.date) || (b.createdAt||'').localeCompare(a.createdAt||''));
 
   const listEl = document.getElementById('monthlyList');
   listEl.innerHTML = monthItems.length
     ? monthItems.map(itemRow).join('')
     : '<div class="empty">ไม่มีรายการในเดือนนี้</div>';
 
-  // กราฟวงกลม: เฉพาะรายจ่าย เพื่อดูสัดส่วนการใช้จ่าย
-  const expenseItems = monthItems.filter(x => (x.type || 'expense') === 'expense');
+  // กราฟวงกลม: เฉพาะรายจ่ายที่ยืนยันแล้ว เพื่อดูสัดส่วนการใช้จ่ายจริง
+  const expenseItems = monthItems.filter(x => (x.type || 'expense') === 'expense' && x.status !== 'pending');
   const byCat = {};
   expenseItems.forEach(x => { byCat[x.category] = (byCat[x.category] || 0) + x.amount; });
   const labels = Object.keys(byCat);
@@ -551,8 +838,8 @@ function renderMonthly() {
 
   const legend = document.getElementById('legend');
   legend.innerHTML = labels.length
-    ? labels.map((l,i) => `<span><span class="dot" style="background:${colors[i]}"></span>${l} (${fmt(byCat[l])})</span>`).join('')
-    : '<span>ยังไม่มีรายจ่ายในเดือนนี้</span>';
+    ? labels.map((l,i) => `<span><span class="dot" style="background:${colors[i]}"></span>${escapeHtml(l)} (${fmt(byCat[l])})</span>`).join('')
+    : '<span>ยังไม่มีรายจ่ายที่ยืนยันแล้วในเดือนนี้</span>';
 
   const ctx = document.getElementById('pieChart').getContext('2d');
   if (chart) chart.destroy();
@@ -587,7 +874,7 @@ function renderRanking() {
     rangeLabel = 'ทั้งหมด';
   }
 
-  const expenseItems = items.filter(x => (x.type || 'expense') === 'expense');
+  const expenseItems = items.filter(x => (x.type || 'expense') === 'expense' && x.status !== 'pending');
   const byCat = {};
   expenseItems.forEach(x => { byCat[x.category] = (byCat[x.category] || 0) + x.amount; });
   const total = Object.values(byCat).reduce((s,v) => s+v, 0);
@@ -595,7 +882,7 @@ function renderRanking() {
 
   const listEl = document.getElementById('rankList');
   if (!ranked.length) {
-    listEl.innerHTML = `<div class="empty">ไม่มีรายจ่ายใน${rangeLabel}</div>`;
+    listEl.innerHTML = `<div class="empty">ไม่มีรายจ่ายที่ยืนยันแล้วใน${rangeLabel}</div>`;
     return;
   }
   listEl.innerHTML = ranked.map(([cat, amt], i) => {
@@ -606,7 +893,7 @@ function renderRanking() {
         <div class="rank-num">${i+1}</div>
         <div class="rank-body">
           <div class="rank-top">
-            <span class="cat-name">${cat}</span>
+            <span class="cat-name">${escapeHtml(cat)}</span>
             <span class="cat-amt">${fmt(amt)}<span class="rank-pct">${pct}%</span></span>
           </div>
           <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${pct}%;background:${color};"></div></div>
@@ -616,24 +903,11 @@ function renderRanking() {
 }
 
 function renderSummary() {
-  const todayStr = fmtDate(new Date());
-  const todayItems = expenses.filter(x => x.date === todayStr);
-  const todayExpense = todayItems.filter(x => (x.type||'expense')==='expense').reduce((s,x)=>s+x.amount,0);
-  const todayIncome = todayItems.filter(x => x.type==='income').reduce((s,x)=>s+x.amount,0);
-
-  const now = new Date();
-  const monthItems = expenses.filter(x => {
-    const d = new Date(x.date);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  });
-  const monthExpense = monthItems.filter(x => (x.type||'expense')==='expense').reduce((s,x)=>s+x.amount,0);
-  const monthIncome = monthItems.filter(x => x.type==='income').reduce((s,x)=>s+x.amount,0);
-  const balance = monthIncome - monthExpense;
-
-  document.getElementById('todayExpense').textContent = fmt(todayExpense);
-  document.getElementById('todayIncome').textContent = fmt(todayIncome);
-  document.getElementById('monthExpense').textContent = fmt(monthExpense);
-  document.getElementById('monthIncome').textContent = fmt(monthIncome);
+  document.getElementById('todayExpense').textContent = fmt(summaryToday.expense || 0);
+  document.getElementById('todayIncome').textContent = fmt(summaryToday.income || 0);
+  document.getElementById('monthExpense').textContent = fmt(summaryMonth.expense || 0);
+  document.getElementById('monthIncome').textContent = fmt(summaryMonth.income || 0);
+  const balance = summaryMonth.net || 0;
   const balEl = document.getElementById('monthBalance');
   balEl.textContent = (balance < 0 ? '-' : '') + fmt(Math.abs(balance));
   balEl.style.color = balance < 0 ? '#e57373' : '#81c784';
@@ -645,7 +919,7 @@ function renderAll() {
   renderMonthly();
 }
 
-// ---------- สำรอง / นำเข้าข้อมูล ----------
+// ---------- สำรองข้อมูล (จากรายการที่กำลังแสดงอยู่) ----------
 function downloadBlob(content, filename, type) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -667,11 +941,12 @@ document.getElementById('exportJsonBtn').addEventListener('click', () => {
   if (!expenses.length) { alert('ยังไม่มีข้อมูลให้สำรอง'); return; }
   const payload = {
     app: 'expense-tracker',
+    user: currentUserKey,
     exportedAt: new Date().toISOString(),
     count: expenses.length,
     expenses
   };
-  downloadBlob(JSON.stringify(payload, null, 2), `expense-backup-${todayStamp()}.json`, 'application/json');
+  downloadBlob(JSON.stringify(payload, null, 2), `expense-backup-${currentUserKey}-${todayStamp()}.json`, 'application/json');
 });
 
 function csvEscape(val) {
@@ -682,65 +957,34 @@ function csvEscape(val) {
 
 document.getElementById('exportCsvBtn').addEventListener('click', () => {
   if (!expenses.length) { alert('ยังไม่มีข้อมูลให้ส่งออก'); return; }
-  const header = ['ประเภท', 'วันที่', 'หมวดหมู่', 'จำนวนเงิน', 'บันทึกเพิ่มเติม'];
+  const header = ['ประเภท', 'วันที่', 'หมวดหมู่', 'จำนวนเงิน', 'สถานะ', 'บันทึกเพิ่มเติม'];
   const rows = [...expenses]
     .sort((a,b) => a.date.localeCompare(b.date))
     .map(x => [
       (x.type||'expense') === 'income' ? 'รายรับ' : 'รายจ่าย',
-      x.date, x.category, x.amount, x.note || ''
+      x.date, x.category, x.amount,
+      x.status === 'pending' ? 'รออนุมัติ' : 'ยืนยันแล้ว',
+      x.note || ''
     ].map(csvEscape).join(','));
-  const csv = '\uFEFF' + [header.join(','), ...rows].join('\r\n'); // BOM ให้ Excel อ่านภาษาไทยถูก
-  downloadBlob(csv, `expense-export-${todayStamp()}.csv`, 'text/csv;charset=utf-8;');
+  const csv = '﻿' + [header.join(','), ...rows].join('\r\n'); // BOM ให้ Excel อ่านภาษาไทยถูก
+  downloadBlob(csv, `expense-export-${currentUserKey}-${todayStamp()}.csv`, 'text/csv;charset=utf-8;');
 });
 
-document.getElementById('importBtn').addEventListener('click', () => {
-  document.getElementById('importFile').click();
-});
-
-document.getElementById('importFile').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    const incoming = Array.isArray(parsed) ? parsed : parsed.expenses;
-    if (!Array.isArray(incoming)) throw new Error('รูปแบบไฟล์ไม่ถูกต้อง');
-
-    const valid = incoming.filter(x => x && typeof x.amount === 'number' && x.date && x.category);
-    if (!valid.length) throw new Error('ไม่พบรายการที่ใช้งานได้ในไฟล์');
-
-    const existingIds = new Set(expenses.map(x => x.id));
-    let added = 0, skipped = 0;
-    valid.forEach(item => {
-      const id = item.id && !existingIds.has(item.id)
-        ? item.id
-        : Date.now().toString(36) + Math.random().toString(36).slice(2,8);
-      if (existingIds.has(id)) { skipped++; return; }
-      existingIds.add(id);
-      expenses.push({
-        id,
-        type: item.type === 'income' ? 'income' : 'expense',
-        amount: item.amount,
-        category: item.category,
-        date: item.date,
-        note: item.note || '',
-        createdAt: item.createdAt || new Date().toISOString()
-      });
-      added++;
-    });
-
-    await saveExpenses();
-    renderAll();
-    alert(`นำเข้าสำเร็จ: เพิ่ม ${added} รายการ${skipped ? ` (ข้ามรายการซ้ำ ${skipped})` : ''}`);
-  } catch (err) {
-    console.error(err);
-    alert('นำเข้าข้อมูลไม่สำเร็จ: ไฟล์ไม่ถูกต้องหรือเสียหาย');
-  } finally {
-    e.target.value = '';
+// ---------- เริ่มทำงาน ----------
+(async function init() {
+  currentTeamId = resolveTeamId();
+  const noTeamCard = document.getElementById('noTeamCard');
+  const mainContent = document.getElementById('mainContent');
+  if (!currentTeamId) {
+    if (noTeamCard) noTeamCard.style.display = 'block';
+    if (mainContent) mainContent.style.display = 'none';
+    return;
   }
-});
-
-loadExpenses();
+  if (noTeamCard) noTeamCard.style.display = 'none';
+  if (mainContent) mainContent.style.display = 'block';
+  await ensureUserPicked();
+  await loadFromServer();
+})();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
