@@ -197,6 +197,18 @@
     vertical-align: middle;
   }
 
+  .owner-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    background: #fdece1;
+    border-radius: 6px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
   .user-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
   .user-chip {
     font-size: 12px; color: var(--muted); background: #fff; border: 1px solid var(--line);
@@ -675,7 +687,8 @@ async function loadFromServer() {
     ]);
     expenses = listRes.transactions.map(t => ({
       id: t.id, type: t.type, amount: t.amount, category: t.category,
-      date: t.date, note: t.note, createdAt: t.createdAt, status: t.status
+      date: t.date, note: t.note, createdAt: t.createdAt, status: t.status,
+      ownerName: t.ownerName || ''
     }));
     summaryToday = sumRes.today;
     summaryMonth = sumRes.month;
@@ -805,12 +818,17 @@ function itemRow(item) {
   const delBtn = isPending
     ? `<button class="del" onclick="cancelPendingExpense('${item.id}')" title="ยกเลิกรายการที่รออนุมัติ">✕</button>`
     : '';
+  // แสดงชื่อคนบันทึกด้วย เฉพาะตอนดูมุมมอง "ทั้งหมด (รวมทุกคน)" — จะได้รู้ว่าใครจ่ายอะไรบ้าง
+  // มุมมองรายคนปกติไม่ต้องโชว์ซ้ำ เพราะรู้อยู่แล้วว่าเป็นของใคร
+  const ownerTag = (currentUserKey === 'all' && item.ownerName)
+    ? `<span class="owner-tag">👤 ${escapeHtml(item.ownerName)}</span>`
+    : '';
   return `
     <div class="item">
       <div class="left">
         <div class="cat" style="color:${catColor}">${type === 'income' ? '💵' : '💸'} ${escapeHtml(item.category)}${badge}</div>
         ${item.note ? `<div class="note">${escapeHtml(item.note)}</div>` : ''}
-        <div class="date">${new Date(item.date).toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'})}</div>
+        <div class="date">${new Date(item.date).toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'})}${ownerTag}</div>
       </div>
       <div class="right">
         <div class="amt" style="color:${amtColor}">${sign}${fmt(item.amount)}</div>
