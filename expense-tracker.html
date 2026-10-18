@@ -506,11 +506,17 @@ function updateUserBadge() {
   if (el2) el2.textContent = currentUserName || currentUserKey || '-';
 }
 
+// BUGFIX: เพิ่มตัวเลือก "ทั้งหมด (รวมทุกคน)" ในหน้าเลือกผู้ใช้ — เดิมเลือกได้แค่เป็นรายคน
+// ทำให้สรุปยอดเห็นแค่ของตัวเองเท่านั้น ทั้งที่ backend (web_list/web_summary) รองรับ
+// user=all (รวมทุกคนในทีม) อยู่แล้ว แค่หน้าเว็บยังไม่เคยเปิดให้เลือก
+const ALL_USERS_OPTION = { key: 'all', name: 'ทั้งหมด (รวมทุกคน)' };
+
 function openUserPicker() {
   return new Promise(resolve => {
     const overlay = document.getElementById('userPickerOverlay');
     const listEl = document.getElementById('userPickerList');
-    listEl.innerHTML = webUsersList.map(u =>
+    const pickList = [ALL_USERS_OPTION].concat(webUsersList);
+    listEl.innerHTML = pickList.map(u =>
       `<button type="button" class="user-pick-btn" data-key="${escapeHtml(u.key)}">${escapeHtml(u.name)}</button>`
     ).join('');
     overlay.style.display = 'flex';
@@ -540,7 +546,7 @@ async function refreshWebUsersList() {
 async function ensureUserPicked() {
   await refreshWebUsersList();
   const saved = getSavedUserKey();
-  const match = webUsersList.find(u => u.key === saved);
+  const match = [ALL_USERS_OPTION].concat(webUsersList).find(u => u.key === saved);
   if (saved && match) {
     currentUserKey = saved;
     currentUserName = match.name;
@@ -660,8 +666,8 @@ async function loadFromServer() {
   setStatusBanner('loading');
   try {
     const [listRes, sumRes] = await Promise.all([
-      apiGet('web_list', { user: currentUserKey, limit: 1000 }),
-      apiGet('web_summary', { user: currentUserKey })
+      apiGet('web_list', { user: currentUserKey, limit: 1000, team: currentTeamId || 'default' }),
+      apiGet('web_summary', { user: currentUserKey, team: currentTeamId || 'default' })
     ]);
     expenses = listRes.transactions.map(t => ({
       id: t.id, type: t.type, amount: t.amount, category: t.category,
@@ -713,6 +719,10 @@ document.getElementById('expenseForm').addEventListener('submit', async (e) => {
   const date = document.getElementById('date').value;
   const note = document.getElementById('note').value.trim();
   if (!amount || amount <= 0) return;
+  if (currentUserKey === 'all') {
+    alert('โหมด "ทั้งหมด (รวมทุกคน)" ใช้ดูสรุปยอดรวมเท่านั้น\nกดเปลี่ยนผู้ใช้ด้านบนเพื่อเลือกตัวเองก่อนบันทึกรายการครับ');
+    return;
+  }
 
   const submitBtn = document.getElementById('submitBtn');
   submitBtn.disabled = true;
