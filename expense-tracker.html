@@ -553,7 +553,11 @@ async function ensureUserPicked() {
     updateUserBadge();
     return;
   }
-  await openUserPicker();
+  // ค่าเริ่มต้นเมื่อยังไม่เคยเลือก (เปิดครั้งแรก/ล้างแคช): ใช้ "ทั้งหมด (รวมทุกคน)" ไปเลย
+  // ไม่ต้องบังคับให้เลือกคนก่อน — กดปุ่ม "เปลี่ยน" ทีหลังได้ตอนจะบันทึกรายการของตัวเอง
+  currentUserKey = ALL_USERS_OPTION.key;
+  currentUserName = ALL_USERS_OPTION.name;
+  saveUserKey(currentUserKey);
   updateUserBadge();
 }
 
